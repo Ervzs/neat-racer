@@ -38,6 +38,12 @@ car_image = pygame.image.load("assets/car.png").convert_alpha()
 car_image = pygame.transform.scale_by(car_image, 0.5)
 
 
+def on_road(x, y):
+    if not (0 <= x < TRACK_WIDTH and 0 <= y < HEIGHT):
+        return False
+    return track.get_at((int(x), int(y))) == ROAD
+
+
 class Car:
     def __init__(self):
         self.x, self.y = TRACK_POINTS[0]
@@ -62,6 +68,17 @@ class Car:
         self.x += math.cos(rad) * self.speed
         self.y -= math.sin(rad) * self.speed
         self.distance += self.speed
+
+        for x, y in self.corners():
+            if not on_road(x, y):
+                self.alive = False
+
+    def corners(self):
+        points = []
+        for offset in (30, 150, 210, 330):
+            rad = math.radians(self.angle + offset)
+            points.append((self.x + math.cos(rad) * 20, self.y - math.sin(rad) * 20))
+        return points
 
 
 running = True
