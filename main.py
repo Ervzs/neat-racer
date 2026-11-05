@@ -80,14 +80,46 @@ class Car:
             points.append((self.x + math.cos(rad) * 20, self.y - math.sin(rad) * 20))
         return points
 
+    def radar(self, offset):
+        rad = math.radians(self.angle + offset)
+        length = 0
+        x, y = self.x, self.y
+        while length < RADAR_MAX and on_road(x, y):
+            length += 1
+            x = self.x + math.cos(rad) * length
+            y = self.y - math.sin(rad) * length
+        return x, y, length
 
+    def draw(self):
+        for offset in RADAR_ANGLES:
+            x, y, _ = self.radar(offset)
+            pygame.draw.line(screen, RAY, (self.x, self.y), (x, y), 1)
+        image = pygame.transform.rotate(car_image, self.angle - 90)
+        screen.blit(image, image.get_rect(center=(self.x, self.y)))
+
+
+car = Car()
 running = True
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
 
+    keys = pygame.key.get_pressed()
+    if keys[pygame.K_LEFT]:
+        car.act(0)
+    if keys[pygame.K_RIGHT]:
+        car.act(1)
+    if keys[pygame.K_UP]:
+        car.act(2)
+    if keys[pygame.K_DOWN]:
+        car.act(3)
+    car.update()
+    if not car.alive:
+        car = Car()
+
     screen.blit(track, (0, 0))
+    car.draw()
     pygame.draw.rect(screen, PANEL, (TRACK_WIDTH, 0, WIDTH - TRACK_WIDTH, HEIGHT))
     pygame.display.flip()
     clock.tick(FPS)
