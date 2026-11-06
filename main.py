@@ -1,5 +1,7 @@
 import math
+import sys
 
+import neat
 import pygame
 
 WIDTH, HEIGHT = 1200, 800
@@ -22,6 +24,9 @@ ACCEL = 0.2
 MAX_SPEED = 6
 RADAR_MAX = 200
 RADAR_ANGLES = (-90, -45, 0, 45, 90)
+TIME_LIMIT = 30 * FPS
+STUCK_CHECK = 3 * FPS
+STUCK_DISTANCE = 50
 
 pygame.init()
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -52,6 +57,8 @@ class Car:
         self.speed = 2
         self.alive = True
         self.distance = 0
+        self.frames = 0
+        self.check_x, self.check_y = self.x, self.y
 
     def act(self, choice):
         if choice == 0:
@@ -73,6 +80,12 @@ class Car:
             if not on_road(x, y):
                 self.alive = False
 
+        self.frames += 1
+        if self.frames % STUCK_CHECK == 0:
+            if math.dist((self.x, self.y), (self.check_x, self.check_y)) < STUCK_DISTANCE:
+                self.alive = False
+            self.check_x, self.check_y = self.x, self.y
+
     def corners(self):
         points = []
         for offset in (30, 150, 210, 330):
@@ -90,6 +103,9 @@ class Car:
             y = self.y - math.sin(rad) * length
         return x, y, length
 
+    def inputs(self):
+        return [self.radar(offset)[2] / RADAR_MAX for offset in RADAR_ANGLES]
+
     def draw(self):
         for offset in RADAR_ANGLES:
             x, y, _ = self.radar(offset)
@@ -98,30 +114,41 @@ class Car:
         screen.blit(image, image.get_rect(center=(self.x, self.y)))
 
 
-car = Car()
-running = True
-while running:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
+def eval_genomes(genomes, config):
+    nets = []
+    cars = []
+    for _, genome in genomes:
+        genome.fitness = 0
+        nets.append(neat.nn.FeedForwardNetwork.create(genome, config))
+        cars.append(Car())
 
-    keys = pygame.key.get_pressed()
-    if keys[pygame.K_LEFT]:
-        car.act(0)
-    if keys[pygame.K_RIGHT]:
-        car.act(1)
-    if keys[pygame.K_UP]:
-        car.act(2)
-    if keys[pygame.K_DOWN]:
-        car.act(3)
-    car.update()
-    if not car.alive:
-        car = Car()
+    frames = 0
+    while frames < TIME_LIMIT and any(car.alive for car in cars):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
 
-    screen.blit(track, (0, 0))
-    car.draw()
-    pygame.draw.rect(screen, PANEL, (TRACK_WIDTH, 0, WIDTH - TRACK_WIDTH, HEIGHT))
-    pygame.display.flip()
-    clock.tick(FPS)
+        frames += 1
+        for car, net, (_, genome) in zip(cars, nets, genomes):
+            if car.alive:
+                output = net.activate(car.inputs())
+                car.act(output.index(max(output)))
+                car.update()
+                genome.fitness = car.distance
 
-pygame.quit()
+        screen.blit(track, (0, 0))
+        for car in cars:
+            if car.alive:
+                car.draw()
+        pygame.draw.rect(screen, PANEL, (TRACK_WIDTH, 0, WIDTH - TRACK_WIDTH, HEIGHT))
+        pygame.display.flip()
+        clock.tick(FPS)
+
+
+config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
+                     neat.DefaultSpeciesSet, neat.DefaultStagnation,
+                     "config-feedforward.txt")
+population = neat.Population(config)
+population.add_reporter(neat.StdOutReporter(True))
+population.run(eval_genomes, 1000)
