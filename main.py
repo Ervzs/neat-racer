@@ -11,6 +11,7 @@ FPS = 60
 GRASS = (60, 140, 60)
 ROAD = (90, 90, 90)
 PANEL = (30, 30, 30)
+WHITE = (255, 255, 255)
 RAY = (255, 220, 0)
 
 ROAD_WIDTH = 80
@@ -32,6 +33,7 @@ pygame.init()
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("NEAT Racer")
 clock = pygame.time.Clock()
+font = pygame.font.Font(None, 28)
 
 track = pygame.Surface((TRACK_WIDTH, HEIGHT))
 track.fill(GRASS)
@@ -41,6 +43,13 @@ for point in TRACK_POINTS:
 
 car_image = pygame.image.load("assets/car.png").convert_alpha()
 car_image = pygame.transform.scale_by(car_image, 0.5)
+
+pause_button = pygame.Rect(TRACK_WIDTH + 20, 20, 260, 40)
+slower_button = pygame.Rect(TRACK_WIDTH + 20, 70, 125, 40)
+faster_button = pygame.Rect(TRACK_WIDTH + 155, 70, 125, 40)
+
+paused = False
+speed = 1
 
 
 def on_road(x, y):
@@ -114,6 +123,34 @@ class Car:
         screen.blit(image, image.get_rect(center=(self.x, self.y)))
 
 
+def draw_text(text, x, y):
+    screen.blit(font.render(text, True, WHITE), (x, y))
+
+
+def draw_button(rect, text):
+    pygame.draw.rect(screen, (70, 70, 70), rect, border_radius=6)
+    label = font.render(text, True, WHITE)
+    screen.blit(label, label.get_rect(center=rect.center))
+
+
+def draw_panel():
+    pygame.draw.rect(screen, PANEL, (TRACK_WIDTH, 0, WIDTH - TRACK_WIDTH, HEIGHT))
+    draw_button(pause_button, "Resume" if paused else "Pause")
+    draw_button(slower_button, "Speed -")
+    draw_button(faster_button, "Speed +")
+    draw_text(f"Speed: {speed:g}x", TRACK_WIDTH + 20, 130)
+
+
+def handle_click(pos):
+    global paused, speed
+    if pause_button.collidepoint(pos):
+        paused = not paused
+    elif slower_button.collidepoint(pos):
+        speed = max(speed / 2, 0.5)
+    elif faster_button.collidepoint(pos):
+        speed = min(speed * 2, 2)
+
+
 def eval_genomes(genomes, config):
     nets = []
     cars = []
@@ -128,22 +165,25 @@ def eval_genomes(genomes, config):
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                handle_click(event.pos)
 
-        frames += 1
-        for car, net, (_, genome) in zip(cars, nets, genomes):
-            if car.alive:
-                output = net.activate(car.inputs())
-                car.act(output.index(max(output)))
-                car.update()
-                genome.fitness = car.distance
+        if not paused:
+            frames += 1
+            for car, net, (_, genome) in zip(cars, nets, genomes):
+                if car.alive:
+                    output = net.activate(car.inputs())
+                    car.act(output.index(max(output)))
+                    car.update()
+                    genome.fitness = car.distance
 
         screen.blit(track, (0, 0))
         for car in cars:
             if car.alive:
                 car.draw()
-        pygame.draw.rect(screen, PANEL, (TRACK_WIDTH, 0, WIDTH - TRACK_WIDTH, HEIGHT))
+        draw_panel()
         pygame.display.flip()
-        clock.tick(FPS)
+        clock.tick(FPS * speed)
 
 
 config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
