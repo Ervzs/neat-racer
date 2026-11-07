@@ -47,9 +47,12 @@ car_image = pygame.transform.scale_by(car_image, 0.5)
 pause_button = pygame.Rect(TRACK_WIDTH + 20, 20, 260, 40)
 slower_button = pygame.Rect(TRACK_WIDTH + 20, 70, 125, 40)
 faster_button = pygame.Rect(TRACK_WIDTH + 155, 70, 125, 40)
+graph_area = pygame.Rect(TRACK_WIDTH + 20, 400, 260, 200)
 
 paused = False
 speed = 1
+generation = 0
+best_history = []
 
 
 def on_road(x, y):
@@ -133,12 +136,35 @@ def draw_button(rect, text):
     screen.blit(label, label.get_rect(center=rect.center))
 
 
-def draw_panel():
+def draw_graph():
+    pygame.draw.rect(screen, (50, 50, 50), graph_area)
+    if len(best_history) < 2:
+        return
+    top = max(best_history)
+    points = []
+    for i, value in enumerate(best_history):
+        x = graph_area.left + i * graph_area.width / (len(best_history) - 1)
+        y = graph_area.bottom - value / top * graph_area.height
+        points.append((x, y))
+    pygame.draw.lines(screen, RAY, False, points, 2)
+
+
+def draw_panel(cars):
     pygame.draw.rect(screen, PANEL, (TRACK_WIDTH, 0, WIDTH - TRACK_WIDTH, HEIGHT))
     draw_button(pause_button, "Resume" if paused else "Pause")
     draw_button(slower_button, "Speed -")
     draw_button(faster_button, "Speed +")
     draw_text(f"Speed: {speed:g}x", TRACK_WIDTH + 20, 130)
+
+    alive = sum(car.alive for car in cars)
+    best_now = max(car.distance for car in cars)
+    best_ever = max(best_history + [best_now])
+    draw_text(f"Generation: {generation}", TRACK_WIDTH + 20, 200)
+    draw_text(f"Cars alive: {alive}", TRACK_WIDTH + 20, 235)
+    draw_text(f"Best (this gen): {best_now:.0f}", TRACK_WIDTH + 20, 270)
+    draw_text(f"Best (all-time): {best_ever:.0f}", TRACK_WIDTH + 20, 305)
+    draw_text("Best per generation", TRACK_WIDTH + 20, 370)
+    draw_graph()
 
 
 def handle_click(pos):
@@ -152,6 +178,9 @@ def handle_click(pos):
 
 
 def eval_genomes(genomes, config):
+    global generation
+    generation += 1
+
     nets = []
     cars = []
     for _, genome in genomes:
@@ -181,9 +210,11 @@ def eval_genomes(genomes, config):
         for car in cars:
             if car.alive:
                 car.draw()
-        draw_panel()
+        draw_panel(cars)
         pygame.display.flip()
         clock.tick(FPS * speed)
+
+    best_history.append(max(genome.fitness for _, genome in genomes))
 
 
 config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
