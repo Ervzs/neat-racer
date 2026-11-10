@@ -37,17 +37,22 @@ font = pygame.font.Font(None, 28)
 
 track = pygame.Surface((TRACK_WIDTH, HEIGHT))
 track.fill(GRASS)
-pygame.draw.lines(track, ROAD, True, TRACK_POINTS, ROAD_WIDTH)
+for i in range(len(TRACK_POINTS)):
+    start = pygame.Vector2(TRACK_POINTS[i - 1])
+    end = pygame.Vector2(TRACK_POINTS[i])
+    side = (end - start).normalize().rotate(90) * (ROAD_WIDTH / 2)
+    pygame.draw.polygon(track, ROAD, [start + side, end + side, end - side, start - side])
 for point in TRACK_POINTS:
     pygame.draw.circle(track, ROAD, point, ROAD_WIDTH // 2)
 
-car_image = pygame.image.load("assets/car.png").convert_alpha()
-car_image = pygame.transform.scale_by(car_image, 0.5)
+car_images = []
+for color in ("black", "blue", "green", "orange", "yellow"):
+    image = pygame.image.load(f"assets/car-{color}.png").convert_alpha()
+    car_images.append(pygame.transform.scale_by(image, 0.5))
 
 pause_button = pygame.Rect(TRACK_WIDTH + 20, 20, 260, 40)
 slower_button = pygame.Rect(TRACK_WIDTH + 20, 70, 125, 40)
 faster_button = pygame.Rect(TRACK_WIDTH + 155, 70, 125, 40)
-graph_area = pygame.Rect(TRACK_WIDTH + 20, 400, 260, 200)
 
 paused = False
 speed = 1
@@ -62,7 +67,8 @@ def on_road(x, y):
 
 
 class Car:
-    def __init__(self):
+    def __init__(self, image):
+        self.image = image
         self.x, self.y = TRACK_POINTS[0]
         next_x, next_y = TRACK_POINTS[1]
         self.angle = math.degrees(math.atan2(self.y - next_y, next_x - self.x))
@@ -122,7 +128,7 @@ class Car:
         for offset in RADAR_ANGLES:
             x, y, _ = self.radar(offset)
             pygame.draw.line(screen, RAY, (self.x, self.y), (x, y), 1)
-        image = pygame.transform.rotate(car_image, self.angle - 90)
+        image = pygame.transform.rotate(self.image, self.angle - 90)
         screen.blit(image, image.get_rect(center=(self.x, self.y)))
 
 
@@ -134,19 +140,6 @@ def draw_button(rect, text):
     pygame.draw.rect(screen, (70, 70, 70), rect, border_radius=6)
     label = font.render(text, True, WHITE)
     screen.blit(label, label.get_rect(center=rect.center))
-
-
-def draw_graph():
-    pygame.draw.rect(screen, (50, 50, 50), graph_area)
-    if len(best_history) < 2:
-        return
-    top = max(best_history)
-    points = []
-    for i, value in enumerate(best_history):
-        x = graph_area.left + i * graph_area.width / (len(best_history) - 1)
-        y = graph_area.bottom - value / top * graph_area.height
-        points.append((x, y))
-    pygame.draw.lines(screen, RAY, False, points, 2)
 
 
 def draw_panel(cars):
@@ -163,8 +156,6 @@ def draw_panel(cars):
     draw_text(f"Cars alive: {alive}", TRACK_WIDTH + 20, 235)
     draw_text(f"Best (this gen): {best_now:.0f}", TRACK_WIDTH + 20, 270)
     draw_text(f"Best (all-time): {best_ever:.0f}", TRACK_WIDTH + 20, 305)
-    draw_text("Best per generation", TRACK_WIDTH + 20, 370)
-    draw_graph()
 
 
 def handle_click(pos):
@@ -183,10 +174,10 @@ def eval_genomes(genomes, config):
 
     nets = []
     cars = []
-    for _, genome in genomes:
+    for i, (_, genome) in enumerate(genomes):
         genome.fitness = 0
         nets.append(neat.nn.FeedForwardNetwork.create(genome, config))
-        cars.append(Car())
+        cars.append(Car(car_images[i % len(car_images)]))
 
     frames = 0
     while frames < TIME_LIMIT and any(car.alive for car in cars):

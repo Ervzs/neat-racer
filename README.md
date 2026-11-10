@@ -32,7 +32,7 @@ Close the window to stop.
 | Pause / Resume | Freezes or continues the race. |
 | Speed - / Speed + | 0.5x, 1x or 2x. |
 
-The side panel also shows the generation, cars alive, best fitness (this generation and all-time), and a graph of the best fitness per generation.
+The side panel also shows the generation, cars alive, and best fitness (this generation and all-time).
 
 ## Built with
 
@@ -41,4 +41,4 @@ The side panel also shows the generation, cars alive, best fitness (this generat
 
 ## Credits
 
-Car image from the [Racing Pack](https://kenney.nl/assets/racing-pack) by Kenney (CC0).
+Car images from the [Racing Pack](https://kenney.nl/assets/racing-pack) by Kenney (CC0).
